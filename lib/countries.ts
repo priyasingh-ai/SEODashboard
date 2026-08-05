@@ -1,0 +1,80 @@
+/**
+ * Search Console country codes to display names.
+ *
+ * GSC reports countries as lowercase ISO 3166-1 **alpha-3** (`ind`, `usa`).
+ * `Intl.DisplayNames` only accepts alpha-2 or UN M49 numeric codes, so a
+ * translation table is unavoidable. Mapping alpha-3 → alpha-2 and then letting
+ * `Intl` supply the name keeps this file to codes only — no country names to
+ * spell, translate, or keep politically current.
+ *
+ * The table is complete rather than "the countries we see today", so a site
+ * that picks up traffic from somewhere new renders a real name instead of a
+ * stray three-letter code sitting among proper ones.
+ */
+
+/** Space-separated `alpha3 alpha2` pairs. Compact on purpose — it is pure data. */
+const ALPHA3_TO_ALPHA2_PAIRS =
+  "abw AW afg AF ago AO aia AI ala AX alb AL and AD are AE arg AR arm AM asm AS ata AQ atf TF atg AG aus AU aut AT aze AZ " +
+  "bdi BI bel BE ben BJ bes BQ bfa BF bgd BD bgr BG bhr BH bhs BS bih BA blm BL blr BY blz BZ bmu BM bol BO bra BR brb BB " +
+  "brn BN btn BT bvt BV bwa BW caf CF can CA cck CC che CH chl CL chn CN civ CI cmr CM cod CD cog CG cok CK col CO com KM " +
+  "cpv CV cri CR cub CU cuw CW cxr CX cym KY cyp CY cze CZ deu DE dji DJ dma DM dnk DK dom DO dza DZ ecu EC egy EG eri ER " +
+  "esh EH esp ES est EE eth ET fin FI fji FJ flk FK fra FR fro FO fsm FM gab GA gbr GB geo GE ggy GG gha GH gib GI gin GN " +
+  "glp GP gmb GM gnb GW gnq GQ grc GR grd GD grl GL gtm GT guf GF gum GU guy GY hkg HK hmd HM hnd HN hrv HR hti HT hun HU " +
+  "idn ID imn IM ind IN iot IO irl IE irn IR irq IQ isl IS isr IL ita IT jam JM jey JE jor JO jpn JP kaz KZ ken KE kgz KG " +
+  "khm KH kir KI kna KN kor KR kwt KW lao LA lbn LB lbr LR lby LY lca LC lie LI lka LK lso LS ltu LT lux LU lva LV mac MO " +
+  "maf MF mar MA mco MC mda MD mdg MG mdv MV mex MX mhl MH mkd MK mli ML mlt MT mmr MM mne ME mng MN mnp MP moz MZ mrt MR " +
+  "msr MS mtq MQ mus MU mwi MW mys MY myt YT nam NA ncl NC ner NE nfk NF nga NG nic NI niu NU nld NL nor NO npl NP nru NR " +
+  "nzl NZ omn OM pak PK pan PA pcn PN per PE phl PH plw PW png PG pol PL pri PR prk KP prt PT pry PY pse PS pyf PF qat QA " +
+  "reu RE rou RO rus RU rwa RW sau SA sdn SD sen SN sgp SG sgs GS shn SH sjm SJ slb SB sle SL slv SV smr SM som SO spm PM " +
+  "srb RS ssd SS stp ST sur SR svk SK svn SI swe SE swz SZ sxm SX syc SC syr SY tca TC tcd TD tgo TG tha TH tjk TJ tkl TK " +
+  "tkm TM tls TL ton TO tto TT tun TN tur TR tuv TV twn TW tza TZ uga UG ukr UA umi UM ury UY usa US uzb UZ vat VA vct VC " +
+  "ven VE vgb VG vir VI vnm VN vut VU wlf WF wsm WS yem YE zaf ZA zmb ZM zwe ZW";
+
+const ALPHA2_BY_ALPHA3 = (() => {
+  const parts = ALPHA3_TO_ALPHA2_PAIRS.split(" ");
+  const map = new Map<string, string>();
+  for (let i = 0; i + 1 < parts.length; i += 2) map.set(parts[i], parts[i + 1]);
+  return map;
+})();
+
+// Constructed once. `Intl.DisplayNames` is not free to instantiate, and this is
+// called per row of every country table.
+const REGION_NAMES =
+  typeof Intl !== "undefined" && "DisplayNames" in Intl
+    ? new Intl.DisplayNames(["en"], { type: "region" })
+    : undefined;
+
+/**
+ * Display name for a Search Console country code.
+ *
+ * Falls back to the uppercased code for anything unmapped — including GSC's
+ * `zzz`, which it uses when the country could not be determined.
+ */
+export function countryName(code: string): string {
+  const normalised = code.trim().toLowerCase();
+  if (!normalised || normalised === "zzz") return "Unknown";
+
+  const alpha2 = ALPHA2_BY_ALPHA3.get(normalised);
+  if (!alpha2) return code.toUpperCase();
+
+  try {
+    return REGION_NAMES?.of(alpha2) ?? alpha2;
+  } catch {
+    return alpha2;
+  }
+}
+
+/** Regional-indicator flag emoji, or `undefined` when the code is unmapped. */
+export function countryFlag(code: string): string | undefined {
+  const alpha2 = ALPHA2_BY_ALPHA3.get(code.trim().toLowerCase());
+  if (!alpha2) return undefined;
+  return String.fromCodePoint(
+    ...[...alpha2].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
+  );
+}
+
+/** GSC device values are uppercase (`MOBILE`); render them in sentence case. */
+export function deviceName(code: string): string {
+  const key = code.trim().toUpperCase();
+  return { MOBILE: "Mobile", DESKTOP: "Desktop", TABLET: "Tablet" }[key] ?? code;
+}

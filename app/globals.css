@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 5% 97%;
+    --foreground: 240 10% 4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 4%;
+
+    /* Monochrome primary — Vercel/Linear register. Color is reserved for data. */
+    --primary: 240 6% 10%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 240 5% 65%;
+
+    --radius: 0.75rem;
+
+    /* ---- Data-viz tokens (validated palette, light surface #ffffff) ---- */
+    --viz-surface: #ffffff;
+    --series-1: #2a78d6; /* blue    */
+    --series-2: #008300; /* green   */
+    --series-3: #e87ba4; /* magenta */
+    --series-4: #eda100; /* yellow  */
+    --viz-grid: #e8e8ea;
+    --viz-axis: #c3c2b7;
+    --viz-muted: #898781;
+    --viz-good: #006300;
+    --viz-bad: #d03b3b;
+  }
+
+  .dark {
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 6% 7%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 6% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 6% 10%;
+
+    --secondary: 240 4% 13%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 4% 13%;
+    --muted-foreground: 240 5% 60%;
+
+    --accent: 240 4% 15%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 4% 15%;
+    --input: 240 4% 18%;
+    --ring: 240 5% 40%;
+
+    /* ---- Data-viz tokens (same eight hues, stepped for dark surface) ---- */
+    --viz-surface: #101012;
+    --series-1: #3987e5;
+    --series-2: #008300;
+    --series-3: #d55181;
+    --series-4: #c98500;
+    --viz-grid: #232326;
+    --viz-axis: #383835;
+    --viz-muted: #898781;
+    --viz-good: #0ca30c;
+    --viz-bad: #e66767;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Columns that must align vertically get tabular figures; hero numbers keep
+     the default proportional figures. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Recharts: kill the default focus outline on the surface */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
