@@ -24,6 +24,20 @@ const nextConfig = {
   // one less thing advertising the stack.
   poweredByHeader: false,
 
+  /**
+   * Hide the floating dev-tools badge.
+   *
+   * The circled "N" that sits in the bottom-left corner under `next dev`. It is
+   * a development affordance only and never ships — it is absent from a
+   * production build either way — but it overlaps the bottom of the sidebar and
+   * whatever is at the foot of a long table, so it gets in the way of judging
+   * the layout it is drawn on top of.
+   *
+   * Turning it off costs the route-type and build-activity readouts it exposes.
+   * Set this back to `true` to get them for a session.
+   */
+  devIndicators: false,
+
   experimental: {
     /**
      * Rewrite barrel imports to deep imports at build time.
