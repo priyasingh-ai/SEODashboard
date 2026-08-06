@@ -5,37 +5,37 @@ import * as React from "react";
 /**
  * The sign-in gate.
  *
- * ## What this is, and what it is not
+ * ## Where the credentials live
  *
- * A UI gate, not a security boundary. The credentials below are compiled into
- * the browser bundle and the comparison runs in the browser, so anyone who
- * wants past it can read them in devtools. More to the point, the Route
- * Handlers under `/api` are unauthenticated and return the same Google data
- * whether or not anyone signed in — so this keeps the dashboard behind a
- * deliberate step for the people meant to use it, and protects nothing.
+ * Not here. They are `AUTH_EMAIL` and `AUTH_PASSWORD` in the server
+ * environment, and the comparison happens in `app/api/auth/login/route.ts`.
+ * This file used to hold them as a constant, which meant they were compiled
+ * into the browser bundle and committed to the repository — visible to anyone
+ * with devtools or repo access. Nothing in this module knows them now.
  *
- * Making it real is a contained change, and the hook for it already exists:
- * move the comparison into a Route Handler, set an httpOnly cookie, and read it
- * in `withApi` (see `app/api/_lib/handler.ts`, which documents that exact
- * insertion point as the single choke point every data request passes through).
- * Until then, treat the dashboard as public and the login screen as a door with
- * no lock.
+ * ## What this still is not
+ *
+ * A UI gate, not a security boundary. The session it keeps is a flag in the
+ * browser's own storage, so it can be set by hand, and the `/api` data routes
+ * are unauthenticated and answer whether or not anyone signed in. Making it
+ * real means an httpOnly cookie set by that route and read in `withApi` — see
+ * `app/api/_lib/handler.ts`, which documents that exact insertion point as the
+ * single choke point every data request passes through.
  */
-
-const CREDENTIALS = {
-  email: "apps@nextdot.co.in",
-  password: "1234@Nextdot",
-};
 
 /**
  * One message for every failure.
  *
  * Never "no such user" or "wrong password" — a login form that distinguishes
- * the two tells an attacker which half they got right.
+ * the two tells an attacker which half they got right. The server sends its own
+ * copy of this; it is here for the case where the request never arrives.
  */
 export const INVALID_CREDENTIALS = "Invalid email or password.";
 
+const ENDPOINT = "/api/auth/login";
 const STORAGE_KEY = "authenticated";
+/** The signed-in address, kept only so the account menu survives a reload. */
+const EMAIL_KEY = "auth.email";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
@@ -44,20 +44,20 @@ export interface AuthState {
   /** The signed-in address, or `undefined` when nobody is. */
   email?: string;
   /**
-   * Synchronous, and deliberately so.
+   * Asynchronous because it is a real request now, not a fake one.
    *
-   * This is a string comparison against a constant — there is no request to
-   * await. It returned a promise once, with a `setTimeout` inside it purely so
-   * the button's spinner would be visible. That is exactly backwards: it made
-   * every correct sign-in wait 450ms for a decision already made, and it
-   * disguised a real hang further down as "still loading". A sign-in that
-   * cannot fail slowly should not be able to look like it is.
+   * It briefly returned a promise whose only content was a `setTimeout`, so the
+   * spinner would be visible — which made every correct sign-in wait 450ms for a
+   * decision already made. This awaits one round trip to a route handler,
+   * because the comparison it performs cannot happen in the browser without
+   * publishing the password. Locally that is a few milliseconds; deployed it is
+   * one serverless invocation.
    */
   signIn: (
     email: string,
     password: string,
     remember: boolean,
-  ) => { ok: true } | { ok: false; message: string };
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
   signOut: () => void;
 }
 
@@ -70,32 +70,36 @@ const AuthContext = React.createContext<AuthState | null>(null);
  * browser, sessionStorage does not. Reading both means the checkbox decides how
  * long a session lasts rather than being decoration.
  *
- * The value is the flag itself — there is one account, so the address is a
- * constant and storing it would only create something that could disagree with
- * `CREDENTIALS`.
+ * The address rides alongside the flag because the client no longer knows it —
+ * it comes back from the server on a successful sign-in, and without storing it
+ * the account menu would forget who is signed in on every reload.
  */
-function isSignedIn(): boolean {
-  if (typeof window === "undefined") return false;
+function readSession(): { email: string } | null {
+  if (typeof window === "undefined") return null;
 
   for (const store of [window.localStorage, window.sessionStorage]) {
     try {
-      if (store.getItem(STORAGE_KEY) === "true") return true;
+      if (store.getItem(STORAGE_KEY) === "true") {
+        return { email: store.getItem(EMAIL_KEY) ?? "" };
+      }
     } catch {
       // Storage disabled — treat as signed out rather than throwing on every
       // page load.
     }
   }
-  return false;
+  return null;
 }
 
-function writeSession(remember: boolean) {
+function writeSession(email: string, remember: boolean) {
   try {
     const keep = remember ? window.localStorage : window.sessionStorage;
     const drop = remember ? window.sessionStorage : window.localStorage;
     keep.setItem(STORAGE_KEY, "true");
+    keep.setItem(EMAIL_KEY, email);
     // Clear the other store, or an old "remembered" session would outlive a
     // deliberate one-off sign-in.
     drop.removeItem(STORAGE_KEY);
+    drop.removeItem(EMAIL_KEY);
   } catch {
     // Private mode. The session then lasts as long as the tab's memory, which
     // is a degraded experience rather than a broken one.
@@ -104,8 +108,10 @@ function writeSession(remember: boolean) {
 
 function clearSession() {
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
-    window.sessionStorage.removeItem(STORAGE_KEY);
+    for (const store of [window.localStorage, window.sessionStorage]) {
+      store.removeItem(STORAGE_KEY);
+      store.removeItem(EMAIL_KEY);
+    }
   } catch {
     // Nothing to clear if storage was never available.
   }
@@ -117,45 +123,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // reading it during render would produce markup the server could not have
   // produced, and React would discard the whole tree on hydration.
   const [status, setStatus] = React.useState<AuthStatus>("loading");
+  const [email, setEmail] = React.useState<string>();
 
   // Runs twice under Strict Mode, which is harmless: reading storage has no
   // side effect and both passes compute the same status from the same value.
   React.useEffect(() => {
-    setStatus(isSignedIn() ? "authenticated" : "anonymous");
+    const session = readSession();
+    setEmail(session?.email);
+    setStatus(session ? "authenticated" : "anonymous");
   }, []);
 
-  const signIn = React.useCallback<AuthState["signIn"]>((email, password, remember) => {
-    // Addresses are case-insensitive in practice, so matching one on case would
-    // reject a correct sign-in for no reason. The password is compared exactly,
-    // as passwords must be.
-    const matches =
-      email.trim().toLowerCase() === CREDENTIALS.email && password === CREDENTIALS.password;
+  const signIn = React.useCallback<AuthState["signIn"]>(async (address, password, remember) => {
+    let body: { ok?: boolean; email?: string; message?: string };
+    try {
+      const response = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: address, password }),
+      });
+      body = await response.json();
+    } catch {
+      // Offline, or the endpoint is unreachable. Say so rather than reporting
+      // the credentials as wrong — they may well be right.
+      return {
+        ok: false,
+        message: "Could not reach the server. Check your connection and try again.",
+      };
+    }
 
-    if (!matches) return { ok: false, message: INVALID_CREDENTIALS };
+    if (!body.ok) return { ok: false, message: body.message ?? INVALID_CREDENTIALS };
 
-    // Storage first, then state. If the write throws the flag is still set in
+    const confirmed = body.email ?? address.trim().toLowerCase();
+
+    // Storage first, then state. If the write throws, the flag is still set in
     // memory for this tab, and a reload lands back on the login screen rather
     // than on a dashboard the browser cannot remember letting anyone into.
-    writeSession(remember);
+    writeSession(confirmed, remember);
+    setEmail(confirmed);
     setStatus("authenticated");
     return { ok: true };
   }, []);
 
   const signOut = React.useCallback(() => {
     clearSession();
+    setEmail(undefined);
     setStatus("anonymous");
   }, []);
 
   const value = React.useMemo<AuthState>(
     () => ({
       status,
-      // One account, so the address is the constant rather than something read
-      // back from storage.
-      email: status === "authenticated" ? CREDENTIALS.email : undefined,
+      email: status === "authenticated" ? email : undefined,
       signIn,
       signOut,
     }),
-    [status, signIn, signOut],
+    [status, email, signIn, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

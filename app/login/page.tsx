@@ -48,6 +48,8 @@ export default function LoginPage() {
   const [password, setPassword] = React.useState("");
   const [remember, setRemember] = React.useState(true);
   const [revealed, setRevealed] = React.useState(false);
+  /** True for the one round trip the credential check takes. Always reset. */
+  const [submitting, setSubmitting] = React.useState(false);
   /**
    * Set once, on success, and never cleared — the component unmounts when the
    * route changes.
@@ -67,9 +69,9 @@ export default function LoginPage() {
   const filled = email.trim().length > 0 && password.length > 0;
 
   const onSubmit = React.useCallback(
-    (event: React.FormEvent) => {
+    async (event: React.FormEvent) => {
       event.preventDefault();
-      if (!filled || redirecting) return;
+      if (!filled || submitting || redirecting) return;
 
       // Clear both on every attempt, so a stale message never sits above a
       // field the user has since corrected.
@@ -81,22 +83,31 @@ export default function LoginPage() {
         return;
       }
 
-      const result = signIn(email, password, remember);
+      setSubmitting(true);
+      try {
+        const result = await signIn(email, password, remember);
 
-      if (!result.ok) {
-        setFormError(result.message);
-        setPassword("");
-        return;
+        if (!result.ok) {
+          setFormError(result.message);
+          setPassword("");
+          return;
+        }
+
+        // The redirect is not issued here. `AuthGate` already enforces "a
+        // signed-in visitor does not sit on /login" — it has to, for anyone
+        // arriving with a session from a bookmark — so calling `router.replace`
+        // here too would be a second code path doing one job, racing the first.
+        // `signIn` has just flipped the status, so that effect runs on this
+        // commit.
+        setRedirecting(true);
+      } finally {
+        // Always, including the early return above and any throw. This is the
+        // guarantee that a failed attempt can never leave the form disabled
+        // with a spinner on it.
+        setSubmitting(false);
       }
-
-      // The redirect is not issued here. `AuthGate` already enforces "a signed-
-      // in visitor does not sit on /login" — it has to, for anyone arriving
-      // with a session from a bookmark — so calling `router.replace` here too
-      // would be a second code path doing one job, racing the first. `signIn`
-      // has just flipped the status, so that effect runs on this commit.
-      setRedirecting(true);
     },
-    [email, password, remember, filled, redirecting, signIn],
+    [email, password, remember, filled, submitting, redirecting, signIn],
   );
 
   return (
@@ -137,7 +148,10 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 autoFocus
-                placeholder="apps@nextdot.co.in"
+                // Generic on purpose. The real address as a placeholder put half
+                // the credential back into the client bundle and onto the
+                // screen, which is what moving the check server-side was for.
+                placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 aria-invalid={emailError ? true : undefined}
@@ -214,8 +228,18 @@ export default function LoginPage() {
               Remember me
             </label>
 
-            <Button type="submit" size="lg" disabled={!filled || redirecting} className="w-full">
-              {redirecting ? (
+            {/*
+              One spinner for two phases that read as one wait: the credential
+              check, and the route transition after it. Splitting them would
+              flicker the button back to its resting state in between.
+            */}
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!filled || submitting || redirecting}
+              className="w-full"
+            >
+              {submitting || redirecting ? (
                 <>
                   <Loader2 className="animate-spin" />
                   Signing in…
