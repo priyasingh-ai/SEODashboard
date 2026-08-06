@@ -6,5 +6,5 @@ import { parseParams, withApi } from "../_lib/handler";
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
-  return withApi(() => getContentHealth(parseParams(request)));
+  return withApi(async () => getContentHealth(await parseParams(request)));
 }

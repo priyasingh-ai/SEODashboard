@@ -43,7 +43,25 @@ const STATUS: Record<SignalStatus, { label: string; icon: LucideIcon; tone: stri
   },
 };
 
-export function StatusBadge({ status, className }: { status: SignalStatus; className?: string }) {
+export function StatusBadge({
+  status,
+  label: labelOverride,
+  className,
+}: {
+  status: SignalStatus;
+  /**
+   * Replaces the status's default wording, keeping its colour and icon.
+   *
+   * "Missing" reads correctly where the absent thing is the site's own — the
+   * default against "Organization schema". It names the wrong subject wherever
+   * an external service answered and reported nothing: "ChatGPT · Missing" and
+   * "Knowledge Graph · Missing" are both read as the key being absent, when the
+   * call in fact ran and the brand is what went unfound. Those cases pass their
+   * own wording; the tone stays red, because the result is still poor.
+   */
+  label?: string;
+  className?: string;
+}) {
   const { label, icon: Icon, tone } = STATUS[status];
   return (
     <span
@@ -54,7 +72,7 @@ export function StatusBadge({ status, className }: { status: SignalStatus; class
       )}
     >
       <Icon className="h-3 w-3 shrink-0" strokeWidth={2.25} />
-      {label}
+      {labelOverride ?? label}
     </span>
   );
 }
@@ -122,6 +140,13 @@ export function ProviderCard({ result, className }: { result: ProviderResult; cl
                 ? "unavailable"
                 : "not-configured"
           }
+          // A scan that ran and found nothing is the finding, not a fault. The
+          // default "Missing" is read as the key or the provider being absent —
+          // the run count beneath it says otherwise, but the badge is what gets
+          // looked at first.
+          label={
+            result.status === "ok" && result.mentionRate === 0 ? "Not mentioned" : undefined
+          }
         />
       </div>
 
@@ -169,7 +194,7 @@ export function SignalCard({ signal, className }: { signal: GeoSignal; className
     <Card className={cn("p-4", ring, className)}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[13px] font-semibold tracking-tight">{signal.label}</span>
-        <StatusBadge status={signal.status} />
+        <StatusBadge status={signal.status} label={signal.badgeLabel} />
       </div>
 
       <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{signal.summary}</p>

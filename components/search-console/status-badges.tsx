@@ -1,7 +1,7 @@
-import { ArrowDownRight, ArrowUpRight, MinusCircle, Sparkles, Zap } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Equal, MinusCircle, Sparkles, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { MovementKind } from "@/types";
+import type { MovementRowKind } from "@/types";
 import type { PageHealth } from "@/lib/search-insights";
 
 /**
@@ -12,7 +12,7 @@ import type { PageHealth } from "@/lib/search-insights";
  * explicitly, matching the existing `TrendBadge`.
  */
 
-const MOVEMENT: Record<MovementKind, { label: string; icon: LucideIcon; tone: string }> = {
+const MOVEMENT: Record<MovementRowKind, { label: string; icon: LucideIcon; tone: string }> = {
   improved: {
     label: "Improved",
     icon: ArrowUpRight,
@@ -33,9 +33,16 @@ const MOVEMENT: Record<MovementKind, { label: string; icon: LucideIcon; tone: st
     icon: MinusCircle,
     tone: "bg-secondary text-muted-foreground",
   },
+  // Neutral by design: holding position is neither a win nor a problem, and
+  // colouring it would put visual weight on the majority of a site's keywords.
+  stable: {
+    label: "No change",
+    icon: Equal,
+    tone: "bg-secondary text-muted-foreground",
+  },
 };
 
-export function MovementBadge({ kind, className }: { kind: MovementKind; className?: string }) {
+export function MovementBadge({ kind, className }: { kind: MovementRowKind; className?: string }) {
   const { label, icon: Icon, tone } = MOVEMENT[kind];
   return (
     <span

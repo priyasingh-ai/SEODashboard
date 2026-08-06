@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { cacheTtlSeconds } from "@/lib/env";
 import { resolveRange } from "@/lib/date-range";
+import { resolveReportingAnchor } from "@/lib/reporting-anchor";
 import type { DateRange, MovementWindow, RangeKey } from "@/types";
 import {
   HTTP_STATUS_BY_CODE,
@@ -50,8 +51,13 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  *
  * Everything is validated: these values reach the Google APIs, and an
  * unvalidated date would surface as an opaque upstream 400.
+ *
+ * Async because a preset range has to be resolved against the measured
+ * reporting anchor, which is a (cached) Search Console call. The client sends
+ * the range *key*; the server decides the dates. That asymmetry is deliberate —
+ * it means a stale tab cannot pin the dashboard to yesterday's window.
  */
-export function parseParams(request: NextRequest): ServiceParams {
+export async function parseParams(request: NextRequest): Promise<ServiceParams> {
   const q = request.nextUrl.searchParams;
 
   const websiteId = q.get("websiteId") ?? q.get("site") ?? "";
@@ -59,16 +65,16 @@ export function parseParams(request: NextRequest): ServiceParams {
     throw new ServiceError("invalid_request", "Missing `websiteId`.", 400);
   }
 
-  return { websiteId, ...parsePortfolioParams(request) };
+  return { websiteId, ...(await parsePortfolioParams(request)) };
 }
 
 const VALID_WINDOWS: MovementWindow[] = ["day", "week", "month"];
 
 /** `parseParams` plus the keyword-movement window. Defaults to week-over-week. */
-export function parseMovementParams(request: NextRequest): MovementParams {
+export async function parseMovementParams(request: NextRequest): Promise<MovementParams> {
   const window = request.nextUrl.searchParams.get("window");
   return {
-    ...parseParams(request),
+    ...(await parseParams(request)),
     window: (VALID_WINDOWS as string[]).includes(window ?? "")
       ? (window as MovementWindow)
       : "week",
@@ -76,7 +82,7 @@ export function parseMovementParams(request: NextRequest): MovementParams {
 }
 
 /** The same filters minus `websiteId`, for portfolio-wide endpoints. */
-export function parsePortfolioParams(request: NextRequest): PortfolioParams {
+export async function parsePortfolioParams(request: NextRequest): Promise<PortfolioParams> {
   const q = request.nextUrl.searchParams;
 
   const rangeParam = q.get("range");
@@ -99,8 +105,12 @@ export function parsePortfolioParams(request: NextRequest): PortfolioParams {
     custom = { from, to };
   }
 
+  // A custom range is taken verbatim, so the anchor is only fetched when a
+  // preset actually needs it.
+  const anchor = range === "custom" ? undefined : await resolveReportingAnchor();
+
   return {
-    dateRange: resolveRange(range, custom),
+    dateRange: resolveRange(range, custom, anchor),
     comparePreviousPeriod: q.get("compare") !== "0",
     refresh: q.get("refresh") === "1",
   };

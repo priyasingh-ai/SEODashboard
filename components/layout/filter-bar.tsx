@@ -5,7 +5,6 @@ import { CalendarDays, Check, GitCompareArrows } from "lucide-react";
 import type { DateRange as RdpRange } from "react-day-picker";
 import type { RangeKey } from "@/types";
 import {
-  reportingAnchor,
   RANGE_LABELS,
   formatRange,
   parseISODate,
@@ -30,7 +29,7 @@ const PRESETS: Exclude<RangeKey, "custom">[] = ["7d", "28d", "3m", "12m"];
 
 /** The presets, as a segmented control on desktop and a select on mobile. */
 function RangePicker() {
-  const { range, custom, dateRange, setRange } = useFilters();
+  const { range, custom, dateRange, anchor, setRange } = useFilters();
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<RdpRange | undefined>();
 
@@ -110,7 +109,7 @@ function RangePicker() {
             onSelect={setDraft}
             defaultMonth={parseISODate(dateRange.from)}
             // No data exists past the anchor, so don't let anyone ask for it.
-            disabled={{ after: parseISODate(reportingAnchor()) }}
+            disabled={{ after: parseISODate(anchor) }}
           />
           <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
             <span className="pl-1 text-[11px] text-muted-foreground tabular">

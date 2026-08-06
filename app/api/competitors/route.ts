@@ -6,7 +6,6 @@ import { parseParams, withApi } from "../_lib/handler";
 export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
-  const params = parseParams(request);
   const competitors = (request.nextUrl.searchParams.get("competitors") ?? "")
     .split(",")
     .map((d) => d.trim())
@@ -14,5 +13,9 @@ export async function GET(request: NextRequest) {
     .map((d) => d.replace(/^https?:\/\//i, "").replace(/\/.*$/, ""))
     .filter((d) => /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(d));
 
-  return withApi(() => getCompetitorReport({ ...params, competitors }));
+  // Parsed inside `withApi` so a bad request surfaces as a typed 400 rather
+  // than an uncaught throw.
+  return withApi(async () =>
+    getCompetitorReport({ ...(await parseParams(request)), competitors }),
+  );
 }

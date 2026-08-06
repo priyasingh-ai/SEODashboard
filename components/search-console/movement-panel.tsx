@@ -3,7 +3,12 @@
 import * as React from "react";
 import { Info } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { KeywordMovementRow, MovementKind, MovementWindow } from "@/types";
+import type {
+  KeywordMovementRow,
+  MovementKind,
+  MovementRowKind,
+  MovementWindow,
+} from "@/types";
 import type { KeywordMovementData } from "@/services/types";
 import { MOVEMENT_WINDOW_LABELS, formatRange } from "@/lib/date-range";
 import { formatNumber, formatPosition } from "@/lib/format";
@@ -25,29 +30,39 @@ import { MovementBadge, MOVEMENT_META } from "./status-badges";
 const WINDOWS: MovementWindow[] = ["day", "week", "month"];
 const KINDS: MovementKind[] = ["improved", "dropped", "new", "lost"];
 
-/** Rank delta cell. Negative is an improvement, so the sign is inverted for colour. */
-function PositionCell({ row }: { row: { kind: MovementKind; position: number; prevPosition: number; positionDelta: number } }) {
-  if (row.kind === "new") {
-    return <span className="tabular">— → {formatPosition(row.position)}</span>;
-  }
-  if (row.kind === "lost") {
-    return <span className="tabular">{formatPosition(row.prevPosition)} → —</span>;
-  }
+/**
+ * Rank delta cell. Negative is an improvement, so the sign is inverted for
+ * colour.
+ *
+ * Presence is read off the position itself — Search Console never reports rank
+ * 0, so a zero means the keyword did not rank in that window. That covers new
+ * and lost rows without special-casing them, and it also covers the stable row
+ * that appeared this window but was too quiet to be called new.
+ */
+function PositionCell({ row }: { row: { kind: MovementRowKind; position: number; prevPosition: number; positionDelta: number } }) {
+  const before = row.prevPosition > 0 ? formatPosition(row.prevPosition) : "—";
+  const after = row.position > 0 ? formatPosition(row.position) : "—";
+  // A delta is only shown where it was the reason for the classification.
+  // Stable rows do drift by fractions of a place, and printing that in red or
+  // green would dress up noise as a result.
+  const showDelta = row.kind === "improved" || row.kind === "dropped";
 
   return (
     <span className="tabular">
-      {formatPosition(row.prevPosition)} → {formatPosition(row.position)}
-      <span
-        className={cn(
-          "ml-1.5 font-medium",
-          row.positionDelta < 0
-            ? "text-emerald-600 dark:text-emerald-400"
-            : "text-red-600 dark:text-red-400",
-        )}
-      >
-        {row.positionDelta < 0 ? "▲" : "▼"}
-        {Math.abs(row.positionDelta).toFixed(1)}
-      </span>
+      {before} → {after}
+      {showDelta && (
+        <span
+          className={cn(
+            "ml-1.5 font-medium",
+            row.positionDelta < 0
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400",
+          )}
+        >
+          {row.positionDelta < 0 ? "▲" : "▼"}
+          {Math.abs(row.positionDelta).toFixed(1)}
+        </span>
+      )}
     </span>
   );
 }
@@ -69,7 +84,7 @@ const columns: ColumnDef<KeywordMovementRow, any>[] = [ // eslint-disable-line @
   {
     accessorKey: "kind",
     header: "Change",
-    cell: ({ getValue }) => <MovementBadge kind={getValue<MovementKind>()} />,
+    cell: ({ getValue }) => <MovementBadge kind={getValue<MovementRowKind>()} />,
     meta: { align: "left" },
   },
   {
@@ -109,10 +124,16 @@ export function MovementPanel({
 }) {
   const [kind, setKind] = React.useState<MovementKind | "all">("all");
 
+  // Unfiltered, the table lists every keyword that ranked in this window —
+  // movers first, then the ones that held. Picking a bucket narrows to that
+  // bucket, so the stable rows are only ever in the way of someone browsing
+  // "all", where they sit below the movement they came to read.
   const rows = React.useMemo(
     () => (data ? data.rows.filter((r) => kind === "all" || r.kind === kind) : []),
     [data, kind],
   );
+
+  const movedCount = data ? KINDS.reduce((total, k) => total + data.counts[k], 0) : 0;
 
   return (
     <div className="space-y-3">
@@ -190,17 +211,29 @@ export function MovementPanel({
             </p>
           )}
 
+          {movedCount === 0 && (
+            <p className="rounded-lg border border-border bg-secondary/40 p-2.5 text-[12px] leading-relaxed text-muted-foreground">
+              No keyword changed position, appeared, or disappeared by enough to register in
+              this window — try a longer one. Every keyword that ranked is still listed below,
+              so you can look one up.
+            </p>
+          )}
+
           {data.rows.length === 0 ? (
             <EmptyState
               inset
-              title="No movement to report"
-              description="No keyword changed position, appeared, or disappeared by enough to register in this window. Try a longer one."
+              title="No keywords in this window"
+              description="Search Console returned no queries for these dates. Try a longer window."
             />
           ) : (
             <DataTable
               columns={columns}
               data={rows}
-              searchPlaceholder="Search keywords…"
+              // Named for what it actually covers. Every keyword in the window
+              // is here, not only the movers, so a term visible in Top Queries
+              // is always findable — which is the whole reason stable rows are
+              // carried.
+              searchPlaceholder="Search every keyword in this window…"
               searchKeys={["keyword"]}
               pageSize={10}
               emptyTitle={`No ${kind === "all" ? "" : MOVEMENT_META[kind as MovementKind].label.toLowerCase() + " "}keywords match`}

@@ -144,13 +144,14 @@ if (failures > 0) {
 const { google } = await import("googleapis");
 const { BetaAnalyticsDataClient } = await import("@google-analytics/data");
 
-// The same window the dashboard's "7 days" preset uses: seven days ending
-// yesterday, matching REPORTING_LAG_DAYS in lib/date-range.ts.
+// Seven days ending yesterday — a connectivity probe, not the dashboard's
+// window. The dashboard ends its ranges at the last *finalised* day, which
+// `lib/reporting-anchor.ts` measures per run and is typically two or three days
+// back, so the totals printed here will read slightly higher than the board's.
 //
 // It used to be an arbitrary -11..-4 window while the output still said
-// "last 7d". That made this script useless for the thing people actually reach
-// for it to do — checking whether the dashboard agrees with Google — because
-// the two were never looking at the same days. Keep these aligned.
+// "last 7d", which made this script useless for comparing against anything.
+// Ending yesterday at least keeps it recent and predictable.
 const end = new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10);
 const start = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Site, Website } from "@/types";
 import { movementRange, previousRange } from "@/lib/date-range";
+import { resolveReportingAnchor } from "@/lib/reporting-anchor";
 import { dataSourceKind } from "@/lib/env";
 import { cached } from "@/lib/cache";
 import {
@@ -63,7 +64,7 @@ function cacheKey(fn: string, params: ServiceParams | PortfolioParams): string {
 export async function getKeywordMovement(
   params: MovementParams,
 ): Promise<ServiceResponse<KeywordMovementData>> {
-  const { range, previous } = movementRange(params.window);
+  const { range, previous } = movementRange(params.window, await resolveReportingAnchor());
 
   return cached(
     `getKeywordMovement:${params.websiteId}:${params.window}:${range.to}:${dataSourceKind()}`,

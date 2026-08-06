@@ -27,6 +27,16 @@ export interface GeoSignal {
   summary: string;
   /** Supporting facts, already formatted. */
   evidence: { label: string; value: string }[];
+  /**
+   * Replaces the status badge's default wording, keeping its colour.
+   *
+   * `poor` normally renders as "Missing", which reads correctly when the signal
+   * is something the site itself should carry — "Organization schema · Missing".
+   * It reads wrongly when the signal is a verdict from an external service that
+   * answered: "Knowledge Graph · Missing" is taken as the key being missing,
+   * when the lookup in fact ran and Google simply holds no entity.
+   */
+  badgeLabel?: string;
   /** Present when status is not-configured or unavailable. */
   reason?: string;
   /** What to do about it. */

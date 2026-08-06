@@ -1,4 +1,9 @@
-import type { KeywordMovement, KeywordMovementRow, MovementKind } from "@/types";
+import type {
+  KeywordMovement,
+  KeywordMovementRow,
+  MovementKind,
+  MovementRowKind,
+} from "@/types";
 
 /**
  * Classifying keyword movement between two windows.
@@ -63,7 +68,7 @@ export function absenceIsProvable<T extends { clicks: number }>(
 }
 
 function row(
-  kind: MovementKind,
+  kind: MovementRowKind,
   keyword: string,
   current: MovementInputRow | undefined,
   previous: MovementInputRow | undefined,
@@ -105,25 +110,42 @@ export function classifyMovement(
     lost: [],
   };
 
+  /**
+   * Ranked now, but earned no bucket — held its position, or is too quiet to
+   * judge. Carried so the table can account for every keyword in the window
+   * rather than only the ones that moved; see `MovementRowKind`.
+   */
+  const stable: KeywordMovementRow[] = [];
+
   for (const current of now) {
     const before = prevByKey.get(current.key);
 
     if (!before) {
       if (current.impressions >= MIN_IMPRESSIONS && isNew(current)) {
         buckets.new.push(row("new", current.key, current, undefined));
+      } else {
+        // Below the floor, or its absence from the previous window is an
+        // artefact of truncation. Either way it is present now and must be
+        // findable — just not claimed as a discovery.
+        stable.push(row("stable", current.key, current, undefined));
       }
       continue;
     }
 
     // Present in both: judge on volume from either window, so a keyword that is
     // fading out still qualifies on the strength of what it used to draw.
-    if (Math.max(current.impressions, before.impressions) < MIN_IMPRESSIONS) continue;
+    if (Math.max(current.impressions, before.impressions) < MIN_IMPRESSIONS) {
+      stable.push(row("stable", current.key, current, before));
+      continue;
+    }
 
     const delta = current.position - before.position;
     if (delta <= -MIN_POSITION_MOVE) {
       buckets.improved.push(row("improved", current.key, current, before));
     } else if (delta >= MIN_POSITION_MOVE) {
       buckets.dropped.push(row("dropped", current.key, current, before));
+    } else {
+      stable.push(row("stable", current.key, current, before));
     }
   }
 
@@ -144,6 +166,8 @@ export function classifyMovement(
   buckets.dropped.sort(byImpact);
   buckets.new.sort((a, b) => b.impressions - a.impressions || b.clicks - a.clicks);
   buckets.lost.sort((a, b) => b.prevClicks - a.prevClicks || b.prevImpressions - a.prevImpressions);
+  // Same order Top Queries uses, so a keyword sits in a familiar place.
+  stable.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
 
   const counts: Record<MovementKind, number> = {
     improved: buckets.improved.length,
@@ -160,6 +184,11 @@ export function classifyMovement(
       ...buckets.dropped.slice(0, MAX_ROWS_PER_KIND),
       ...buckets.new.slice(0, MAX_ROWS_PER_KIND),
       ...buckets.lost.slice(0, MAX_ROWS_PER_KIND),
+      // Movers first, so the default view is still the movement report. Stable
+      // rows are uncapped on purpose — a per-bucket cap would put the search
+      // box back where it started, silently missing whatever fell past it.
+      // They are already bounded by `rowLimit`, since each one came from `now`.
+      ...stable,
     ],
   };
 }

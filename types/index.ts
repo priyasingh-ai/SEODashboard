@@ -217,11 +217,27 @@ export interface PageRow extends PreviousRowMetrics {
  */
 export type MovementWindow = "day" | "week" | "month";
 
+/** The four buckets the headline counts. Every one of them is a change. */
 export type MovementKind = "improved" | "dropped" | "new" | "lost";
+
+/**
+ * How a row is classified, including the absence of movement.
+ *
+ * `stable` is every keyword that ranked in the current window without earning a
+ * bucket — it held its position, or it is too quiet to judge. Those rows are
+ * carried so the table can answer "where is this keyword?" for anything visible
+ * in Top Queries. Without them the search box reports "no keywords match" for a
+ * term the same page lists a few rows above, which reads as a broken table
+ * rather than as a keyword that simply did not move.
+ *
+ * Deliberately outside `MovementKind`: it is not counted, not badged as a
+ * change, and never becomes a Copilot finding.
+ */
+export type MovementRowKind = MovementKind | "stable";
 
 export interface KeywordMovementRow {
   keyword: string;
-  kind: MovementKind;
+  kind: MovementRowKind;
   clicks: number;
   prevClicks: number;
   impressions: number;
@@ -243,7 +259,9 @@ export interface KeywordMovement {
   window: MovementWindow;
   range: DateRange;
   previous: DateRange;
+  /** Movers first, then `stable` rows. See `MovementRowKind`. */
   rows: KeywordMovementRow[];
+  /** Counts the four movement buckets only — `stable` is not a change. */
   counts: Record<MovementKind, number>;
   /**
    * Either window came back at the API row cap, so "new" and "lost" cannot be

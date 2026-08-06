@@ -307,6 +307,10 @@ export async function runGeoScan(input: GeoScanInput): Promise<GeoReport> {
           : knowledgeGraph.status === "not-found"
             ? "poor"
             : "not-configured",
+      // The lookup ran and Google returned no entity — a finding, not a setup
+      // fault. "Missing" here is read as the API key being absent, which has its
+      // own status and its own wording.
+      badgeLabel: knowledgeGraph.status === "not-found" ? "Not recognised" : undefined,
       summary:
         knowledgeGraph.status === "found"
           ? `Recognised as ${knowledgeGraph.entity?.types.filter((t) => t !== "Thing").join(", ") || "an entity"}`

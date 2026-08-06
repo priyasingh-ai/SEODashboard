@@ -1,5 +1,5 @@
 import type { Website } from "@/types";
-import { reportingAnchor, parseISODate } from "@/lib/date-range";
+import { fallbackAnchor, parseISODate } from "@/lib/date-range";
 import { ServiceError } from "../../types";
 import type { DataProvider, ProviderContext } from "../types";
 import { getProfile } from "./profiles";
@@ -142,7 +142,7 @@ export const mockProvider: DataProvider = {
     const profile = getProfile(site.id);
     // Derived from the fixed anchor, never `Date.now()` — a moving timestamp
     // would differ between the server render and hydration.
-    const anchor = parseISODate(reportingAnchor()).getTime() + 8 * 3_600_000;
+    const anchor = parseISODate(fallbackAnchor()).getTime() + 8 * 3_600_000;
     const hours = profile?.syncedHoursAgo ?? 3;
     return new Date(anchor - hours * 3_600_000).toISOString();
   },

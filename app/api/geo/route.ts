@@ -6,5 +6,5 @@ import { parseParams, withApi } from "../_lib/handler";
 export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
-  return withApi(() => getGeoReport(parseParams(request)));
+  return withApi(async () => getGeoReport(await parseParams(request)));
 }

@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DateRange, RangeKey } from "@/types";
 import { resolveRange } from "@/lib/date-range";
+import { useReportingAnchor } from "./use-reporting-anchor";
 import { DEFAULT_WEBSITE_ID, isKnownWebsite } from "@/lib/websites";
 
 /**
@@ -27,6 +28,11 @@ export interface FiltersState {
   compare: boolean;
   /** The resolved concrete window for the current range. */
   dateRange: DateRange;
+  /**
+   * The last day with settled Search Console data — where every preset ends,
+   * and the latest date a custom range may select. See `useReportingAnchor`.
+   */
+  anchor: string;
   setSite: (siteId: string) => void;
   setRange: (range: RangeKey, custom?: DateRange) => void;
   setCompare: (compare: boolean) => void;
@@ -63,7 +69,9 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
 
   const compare = params.get("compare") !== "0"; // on by default
 
-  const dateRange = React.useMemo(() => resolveRange(range, custom), [range, custom?.from, custom?.to]); // eslint-disable-line react-hooks/exhaustive-deps
+  const anchor = useReportingAnchor();
+
+  const dateRange = React.useMemo(() => resolveRange(range, custom, anchor), [range, custom?.from, custom?.to, anchor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const push = React.useCallback(
     (next: URLSearchParams, path = pathname) => {
@@ -119,8 +127,8 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = React.useMemo<FiltersState>(
-    () => ({ siteId, range, custom, compare, dateRange, setSite, setRange, setCompare }),
-    [siteId, range, custom?.from, custom?.to, compare, dateRange, setSite, setRange, setCompare], // eslint-disable-line react-hooks/exhaustive-deps
+    () => ({ siteId, range, custom, compare, dateRange, anchor, setSite, setRange, setCompare }),
+    [siteId, range, custom?.from, custom?.to, compare, dateRange, anchor, setSite, setRange, setCompare], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   return <FiltersContext.Provider value={value}>{children}</FiltersContext.Provider>;

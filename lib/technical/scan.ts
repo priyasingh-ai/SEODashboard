@@ -44,16 +44,20 @@ import { CHECK_ORDER, SEVERITY_RANK, type CheckResult, type TechnicalAudit } fro
  * A ceiling, not a target: a property with fewer ranked pages is scanned in
  * full. Of the four properties here, only the largest comes near this.
  *
- * 100 costs a twentieth of the 2,000/day inspection quota, so a property
- * tolerates twenty scans a day — comfortable for a report cached for an hour,
- * but reachable by leaning on Re-scan, which bypasses that cache.
+ * 30 so a scan fits inside a 60s serverless function, which is what Vercel's
+ * Hobby plan allows. Inspection latency is the binding constraint and it is
+ * high — roughly 7s per URL — so the wall-clock cost is about
+ * `MAX_PAGES / INSPECT_CONCURRENCY * 7s`: some 26s here, against 90s at 100.
  *
- * Raising this further means raising `INSPECT_CONCURRENCY` and the route's
- * `maxDuration` with it. Inspection latency is the binding constraint, and it
- * is high: measured at roughly 7s per URL against this property. The three
- * numbers were chosen together and only hold together.
+ * Quota is not what limits this. 30 URLs is a sixty-sixth of the 2,000/day
+ * inspection allowance, so a property tolerates dozens of scans a day even with
+ * Re-scan bypassing the hourly cache.
+ *
+ * Raising it means raising `INSPECT_CONCURRENCY` and the route's `maxDuration`
+ * with it, on a plan whose functions may run that long. The three numbers were
+ * chosen together and only hold together.
  */
-const MAX_PAGES = 100;
+const MAX_PAGES = 30;
 
 export interface ScanInput {
   site: Site;
@@ -219,16 +223,14 @@ export async function runTechnicalScan(input: ScanInput): Promise<TechnicalAudit
  *
  * Eight at a time. Inspection latency dominates a scan and is worse than it
  * looks — measured at ~7s per URL, so the wall-clock cost is roughly
- * `MAX_PAGES / INSPECT_CONCURRENCY * 7s`. At four, a hundred URLs took about
- * three minutes, which overran the route's `maxDuration` and would have failed
- * in production while passing locally. Eight halves that to about ninety
- * seconds.
+ * `MAX_PAGES / INSPECT_CONCURRENCY * 7s`. At four, thirty URLs take about a
+ * minute, which is the whole budget on a 60s function; eight halves that to
+ * around 26s and leaves room for the page fetches running alongside.
  *
  * Eight is still far inside the documented ceiling of 600 inspections per
- * minute per property — that ceiling would permit far more, and the reason not
- * to take it is the 2,000/day quota, which `MAX_PAGES` governs, and the burst
- * of load a higher number would put on Search Console for no gain once the scan
- * fits its budget.
+ * minute per property. That ceiling would permit far more, and the reason not
+ * to take it is the burst of load a higher number puts on Search Console for
+ * no gain once the scan already fits its budget.
  *
  * A failure on one URL drops that URL rather than rejecting the batch — a
  * partial audit is far more useful than none, and the usual cause is a

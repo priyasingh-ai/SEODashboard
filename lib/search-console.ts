@@ -20,9 +20,10 @@ import type { DateRange } from "@/types";
  *
  * Two behaviours of this API are worth knowing before you trust the numbers:
  *
- * - **Data lags 2–3 days.** A "last 7 days" window ending today will have empty
- *   or partial tail days. `lib/date-range.ts` anchors ranges rather than using
- *   `Date.now()`, which is where you'd apply that offset.
+ * - **Data lags 2–3 days, and the exact figure moves.** A "last 7 days" window
+ *   ending today will have empty or partial tail days. `lib/reporting-anchor.ts`
+ *   measures where finalised data actually ends rather than assuming an offset,
+ *   and every range is built backwards from that.
  * - **Totals are not the sum of rows.** Search Console anonymises long-tail
  *   queries, so summing the `query` dimension undercounts the true total. Always
  *   read totals from an undimensioned query — which is why `getOverview` does
@@ -52,10 +53,11 @@ export interface GscQueryRequest {
    * across all four properties. This changes only how far the window reaches,
    * never what a given day is worth.
    *
-   * Paired with `REPORTING_LAG_DAYS` in lib/date-range.ts, which ends every
-   * range where finalised data ends. Setting one without the other puts the
-   * requested window past the available data, and absent days are charted as
-   * zero rather than omitted.
+   * Paired with `lib/reporting-anchor.ts`, which ends every range exactly where
+   * this state's data ends — it finds that date by asking this endpoint, with
+   * this same `final`. Setting one without the other puts the requested window
+   * past the available data, and absent days are charted as zero rather than
+   * omitted.
    */
   dataState?: "all" | "final";
 }

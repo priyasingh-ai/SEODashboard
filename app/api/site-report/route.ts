@@ -11,5 +11,5 @@ import { withApi, parseParams } from "../_lib/handler";
  * this endpoint's JSON — credentials stay in the Node runtime.
  */
 export async function GET(request: NextRequest) {
-  return withApi(() => getSiteReport(parseParams(request)));
+  return withApi(async () => getSiteReport(await parseParams(request)));
 }

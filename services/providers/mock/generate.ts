@@ -19,7 +19,7 @@ import type {
   SearchBreakdowns,
   TimeseriesPoint,
 } from "@/types";
-import { addDays, daysBetween, eachDay, parseISODate, reportingAnchor } from "@/lib/date-range";
+import { addDays, daysBetween, eachDay, parseISODate, fallbackAnchor } from "@/lib/date-range";
 import { countryName, deviceName } from "@/lib/countries";
 import type { MovementInputRow } from "../movement";
 import type { TrafficProfile } from "./profiles";
@@ -55,7 +55,7 @@ function dayIndex(iso: string): number {
 }
 
 /** The single fixed origin of the trend model. See `dailyRow`. */
-const ANCHOR_DAY = dayIndex(reportingAnchor());
+const ANCHOR_DAY = dayIndex(fallbackAnchor());
 
 /**
  * Compound drift, bounded.
@@ -285,7 +285,7 @@ export function buildMetrics(
  */
 export function buildWeeklyGrowth(
   profile: TrafficProfile,
-  anchor: string = reportingAnchor(),
+  anchor: string = fallbackAnchor(),
 ): number {
   const thisWeek = rollup(daily(profile, { from: addDays(anchor, -6), to: anchor }));
   const lastWeek = rollup(daily(profile, { from: addDays(anchor, -13), to: addDays(anchor, -7) }));

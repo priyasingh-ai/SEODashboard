@@ -11,5 +11,5 @@ import { withApi, parsePortfolioParams } from "../_lib/handler";
  * this endpoint's JSON — credentials stay in the Node runtime.
  */
 export async function GET(request: NextRequest) {
-  return withApi(() => getPortfolio(parsePortfolioParams(request)));
+  return withApi(async () => getPortfolio(await parsePortfolioParams(request)));
 }
