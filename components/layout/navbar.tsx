@@ -30,6 +30,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/use-auth";
 import { useFilters } from "@/hooks/use-filters";
 import { usePageActions } from "@/hooks/use-page-actions";
 import { downloadCSV, downloadPDF } from "@/lib/export";
@@ -188,6 +189,12 @@ function RefreshButton() {
 }
 
 function ProfileMenu() {
+  const { email, signOut } = useAuth();
+
+  // The address the session was opened with, rather than a hardcoded one — so
+  // the menu cannot claim a different account from the one that signed in.
+  const address = email ?? "Not signed in";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -206,7 +213,7 @@ function ProfileMenu() {
         <DropdownMenuLabel className="normal-case tracking-normal">
           <div className="text-[13px] font-medium text-foreground">Apps</div>
           <div className="truncate text-[11px] font-normal text-muted-foreground">
-            apps@nextdot.co.in
+            {address}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -223,7 +230,12 @@ function ProfileMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        {/*
+          Clearing the session is all this does — `AuthGate` sees the status
+          change and routes to the login screen, so the redirect lives in one
+          place rather than being repeated at every sign-out affordance.
+        */}
+        <DropdownMenuItem onSelect={signOut}>
           <LogOut className="h-4 w-4" />
           Sign out
         </DropdownMenuItem>
