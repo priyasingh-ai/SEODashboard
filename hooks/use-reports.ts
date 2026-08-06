@@ -27,7 +27,7 @@ import { useFilters } from "./use-filters";
 
 /** Current filters as API query options, plus the cache key they imply. */
 function useQueryOptions(websiteId?: string): { options: QueryOptions; key: string } {
-  const { siteId, range, dateRange, compare } = useFilters();
+  const { siteId, range, dateRange, compare, anchorResolved } = useFilters();
   const id = websiteId ?? siteId;
 
   return {
@@ -37,56 +37,65 @@ function useQueryOptions(websiteId?: string): { options: QueryOptions; key: stri
       dateRange,
       comparePreviousPeriod: compare,
     },
+    // Empty until the reporting window is known, which `useAsync` reads as
+    // "nothing to ask for yet". On a first visit the window would otherwise be
+    // guessed, fetched against, and immediately superseded — every hook on the
+    // page paying for two round trips to render once.
+    //
     // `compare` is part of the key because it changes the response envelope.
-    key: `${id}:${range}:${dateRange.from}:${dateRange.to}:${compare ? 1 : 0}`,
+    key: anchorResolved
+      ? `${id}:${range}:${dateRange.from}:${dateRange.to}:${compare ? 1 : 0}`
+      : "",
   };
+}
+
+/** A hook's own cache key, or "" while `useQueryOptions` has nothing to key on. */
+function scoped(prefix: string, key: string): string {
+  return key ? `${prefix}:${key}` : "";
 }
 
 export function usePortfolio(): AsyncState<PortfolioData> {
   const { options, key } = useQueryOptions();
-  return useAsync(`portfolio:${key}`, async (isRefresh, signal) => (await api.getPortfolio({ ...options, refresh: isRefresh, signal })).data);
+  return useAsync(scoped("portfolio", key), async (isRefresh, signal) => (await api.getPortfolio({ ...options, refresh: isRefresh, signal })).data);
 }
 
 export function useSiteReport(websiteId?: string): AsyncState<SiteReportData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(`site-report:${key}`, async (isRefresh, signal) => (await api.getSiteReport({ ...options, refresh: isRefresh, signal })).data);
+  return useAsync(scoped("site-report", key), async (isRefresh, signal) => (await api.getSiteReport({ ...options, refresh: isRefresh, signal })).data);
 }
 
 export function useOverview(websiteId?: string): AsyncState<OverviewData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(`overview:${key}`, async (isRefresh, signal) => (await api.getOverview({ ...options, refresh: isRefresh, signal })).data);
+  return useAsync(scoped("overview", key), async (isRefresh, signal) => (await api.getOverview({ ...options, refresh: isRefresh, signal })).data);
 }
 
 export function useTraffic(websiteId?: string): AsyncState<TrafficData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(`traffic:${key}`, async (isRefresh, signal) => (await api.getTraffic({ ...options, refresh: isRefresh, signal })).data);
+  return useAsync(scoped("traffic", key), async (isRefresh, signal) => (await api.getTraffic({ ...options, refresh: isRefresh, signal })).data);
 }
 
 export function useTopQueries(websiteId?: string): AsyncState<QueriesData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(`top-queries:${key}`, async (isRefresh, signal) => (await api.getTopQueries({ ...options, refresh: isRefresh, signal })).data);
+  return useAsync(scoped("top-queries", key), async (isRefresh, signal) => (await api.getTopQueries({ ...options, refresh: isRefresh, signal })).data);
 }
 
 export function useKeywordPerformance(websiteId?: string): AsyncState<QueriesData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(
-    `keyword-performance:${key}`,
+  return useAsync(scoped("keyword-performance", key),
     async (isRefresh, signal) => (await api.getKeywordPerformance({ ...options, refresh: isRefresh, signal })).data,
   );
 }
 
 export function useAnalyticsInsights(websiteId?: string): AsyncState<AnalyticsInsightsData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(
-    `analytics-insights:${key}`,
+  return useAsync(scoped("analytics-insights", key),
     async (isRefresh, signal) => (await api.getAnalyticsInsights({ ...options, refresh: isRefresh, signal })).data,
   );
 }
 
 export function useSearchBreakdowns(websiteId?: string): AsyncState<SearchBreakdownsData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(
-    `search-breakdowns:${key}`,
+  return useAsync(scoped("search-breakdowns", key),
     async (isRefresh, signal) => (await api.getSearchBreakdowns({ ...options, refresh: isRefresh, signal })).data,
   );
 }
@@ -114,8 +123,7 @@ export function useKeywordMovement(
 
 export function useLandingPages(websiteId?: string): AsyncState<LandingPagesData> {
   const { options, key } = useQueryOptions(websiteId);
-  return useAsync(
-    `landing-pages:${key}`,
+  return useAsync(scoped("landing-pages", key),
     async (isRefresh, signal) => (await api.getLandingPages({ ...options, refresh: isRefresh, signal })).data,
   );
 }

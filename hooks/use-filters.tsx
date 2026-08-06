@@ -33,6 +33,12 @@ export interface FiltersState {
    * and the latest date a custom range may select. See `useReportingAnchor`.
    */
   anchor: string;
+  /**
+   * Whether `anchor` is known rather than assumed.
+   *
+   * Data hooks hold their requests until this is true. See `useReportingAnchor`.
+   */
+  anchorResolved: boolean;
   setSite: (siteId: string) => void;
   setRange: (range: RangeKey, custom?: DateRange) => void;
   setCompare: (compare: boolean) => void;
@@ -69,7 +75,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
 
   const compare = params.get("compare") !== "0"; // on by default
 
-  const anchor = useReportingAnchor();
+  const { anchor, resolved: anchorResolved } = useReportingAnchor();
 
   const dateRange = React.useMemo(() => resolveRange(range, custom, anchor), [range, custom?.from, custom?.to, anchor]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -127,8 +133,8 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = React.useMemo<FiltersState>(
-    () => ({ siteId, range, custom, compare, dateRange, anchor, setSite, setRange, setCompare }),
-    [siteId, range, custom?.from, custom?.to, compare, dateRange, anchor, setSite, setRange, setCompare], // eslint-disable-line react-hooks/exhaustive-deps
+    () => ({ siteId, range, custom, compare, dateRange, anchor, anchorResolved, setSite, setRange, setCompare }),
+    [siteId, range, custom?.from, custom?.to, compare, dateRange, anchor, anchorResolved, setSite, setRange, setCompare], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   return <FiltersContext.Provider value={value}>{children}</FiltersContext.Provider>;

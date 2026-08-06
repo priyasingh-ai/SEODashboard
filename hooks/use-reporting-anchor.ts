@@ -49,25 +49,41 @@ function isUsable(value: string | null | undefined): value is string {
   return value > floor.toISOString().slice(0, 10);
 }
 
+export interface ReportingAnchor {
+  /** Always usable, so the header and date picker never render blank. */
+  anchor: string;
+  /**
+   * Whether `anchor` is a known value rather than a blind guess.
+   *
+   * `false` only on a first visit, before the endpoint has answered. Callers
+   * that spend a round trip on the window — every data hook — wait for `true`;
+   * callers that merely display it do not.
+   */
+  resolved: boolean;
+}
+
 /**
  * The best anchor available without waiting.
  *
- * Reading the last known value from storage is what keeps the *second* visit
- * from fetching twice: without it every load would render the fallback window,
- * fire a full round of requests against it, then re-fire them all when the real
- * anchor landed a moment later.
+ * Reading the last known value from storage is what keeps a returning visitor
+ * from fetching twice, and it counts as resolved: it is the last figure Search
+ * Console actually reported, and the background refresh below corrects it if
+ * the day has since rolled over.
  */
-function initialAnchor(): string {
-  if (current) return current;
+function initialAnchor(): ReportingAnchor {
+  if (current) return { anchor: current, resolved: true };
   if (typeof window !== "undefined") {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (isUsable(stored)) return (current = stored);
+      if (isUsable(stored)) {
+        current = stored;
+        return { anchor: stored, resolved: true };
+      }
     } catch {
       // Private mode, or storage disabled. The fallback is still correct.
     }
   }
-  return fallbackAnchor();
+  return { anchor: fallbackAnchor(), resolved: false };
 }
 
 function publish(anchor: string) {
@@ -97,12 +113,19 @@ function load(): Promise<string> {
   return inflight;
 }
 
-export function useReportingAnchor(): string {
-  const [anchor, setAnchor] = React.useState(initialAnchor);
+export function useReportingAnchor(): ReportingAnchor {
+  const [state, setState] = React.useState(initialAnchor);
 
   React.useEffect(() => {
-    subscribers.add(setAnchor);
-    void load();
+    const onPublish = (anchor: string) => setState({ anchor, resolved: true });
+    subscribers.add(onPublish);
+
+    // Resolved on settle, not on publish. `publish` only fires when the value
+    // *changed*, so a first visit whose fetch returned the same date as the
+    // fallback — or failed outright and degraded to it — would never flip the
+    // flag, and every data hook would wait forever on a window that was already
+    // as good as it was going to get.
+    void load().then((anchor) => setState({ anchor, resolved: true }));
 
     const timer = window.setInterval(load, REFRESH_MS);
     // A tab woken after being asleep may be a day behind; check on return
@@ -111,11 +134,11 @@ export function useReportingAnchor(): string {
     window.addEventListener("focus", onFocus);
 
     return () => {
-      subscribers.delete(setAnchor);
+      subscribers.delete(onPublish);
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
   }, []);
 
-  return anchor;
+  return state;
 }

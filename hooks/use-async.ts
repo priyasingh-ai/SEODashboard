@@ -77,6 +77,14 @@ export function useAsync<T>(
   const hasData = data !== undefined;
 
   React.useEffect(() => {
+    // An empty key means the caller does not know what to ask for yet — on the
+    // first visit the reporting window is still being measured. Fetching anyway
+    // would spend a full round of upstream calls on a window that is about to
+    // change, throw the answer away, and spend a second round on the real one:
+    // the page then waits for two fan-outs to show one result. Holding leaves
+    // the skeleton up, which is what it is for.
+    if (!key) return;
+
     const controller = new AbortController();
 
     // On a key change, re-seed from cache so the switch shows that key's last
